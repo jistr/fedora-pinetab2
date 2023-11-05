@@ -1,0 +1,9 @@
+[Unit]
+Description=Pine first boot script
+
+[Service]
+ExecStart=/usr/local/sbin/pine-first-boot
+Type=oneshot
+
+[Install]
+WantedBy=multi-user.target

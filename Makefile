@@ -9,19 +9,19 @@ IMAGE := out/image.raw
 # be set for 'install-kernel-*' targets. Usually looks like
 # '<linux-repo>/arch/arm64/boot'.
 
-# SRC_KERNEL_VERSION -- Kernel version string to differentiate between
-# multiple kernels installed. Must be set for 'install-kernel-*'
-# targets.
-
+SRC_KERNEL_VERSION := $(shell strings $$SRC_KERNEL_BOOT_DIR/Image | grep -Po 'Linux version \d+\.\d+\.\d+' | head -n1 | cut -d' ' -f3)
 
 ### E2E BUILD ###
 
 PHONY += all-pinetab2
-all-pinetab2: image-init image-mount install-kernel-pinetab2 image-ulosetup
+all-pinetab2: image-init image-mount install-kernel-pinetab2 install-first-boot-pinetab2 image-ulosetup
 
 PHONY += clean
 clean: image-ulosetup
-	rm -r ./mnt
+	rmdir ./mnt/fatboot
+	rmdir ./mnt/extboot
+	rmdir ./mnt/btrfs
+	rmdir ./mnt
 	rm -r ./out
 
 ### IMAGE ###
@@ -84,6 +84,7 @@ install-kernel-pinetab2: prune-fatboot mnt/fatboot/linux-$(SRC_KERNEL_VERSION)/I
 mnt/fatboot/linux-$(SRC_KERNEL_VERSION)/Image: $(SRC_KERNEL_BOOT_DIR)/Image
 	test -n "$(SRC_KERNEL_BOOT_DIR)" || { echo "ERROR: SRC_KERNEL_BOOT_DIR is not set"; exit 1; }
 	test -n "$(SRC_KERNEL_VERSION)" || { echo "ERROR: SRC_KERNEL_VERSION is not set"; exit 1; }
+	echo "Kernel version: '$(SRC_KERNEL_VERSION)' from $(SRC_KERNEL_BOOT_DIR)"
 	mkdir -p mnt/fatboot/linux-$(SRC_KERNEL_VERSION)
 	install "$<" "$@"
 
@@ -102,3 +103,18 @@ mnt/fatboot/linux-$(SRC_KERNEL_VERSION)/dtb/rockchip: $(SRC_KERNEL_BOOT_DIR)/Ima
 
 	mkdir -p "$@"
 	cp -a "$(SRC_KERNEL_BOOT_DIR)/dts/rockchip/"*.dtb "$@/"
+
+
+### FIRST BOOT ###
+
+PHONY += install-first-boot-pinetab2
+install-first-boot-pinetab2: mnt/btrfs/root/usr/local/sbin/pine-first-boot mnt/btrfs/root/etc/systemd/system/pine-first-boot.service mnt/btrfs/root/etc/systemd/system/multi-user.target.wants/pine-first-boot.service
+
+mnt/btrfs/root/usr/local/sbin/pine-first-boot: files/btrfs/root/usr/local/sbin/pine-first-boot
+	sudo install -m 0700 "$<" "$@"
+
+mnt/btrfs/root/etc/systemd/system/pine-first-boot.service: files/btrfs/root/etc/systemd/system/pine-first-boot.service
+	sudo install -m 0644 "$<" "$@"
+
+mnt/btrfs/root/etc/systemd/system/multi-user.target.wants/pine-first-boot.service:
+	sudo ln -sf /etc/systemd/system/pine-first-boot.service "$@"
