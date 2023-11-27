@@ -1,12 +1,12 @@
 #!/bin/bash
 set -euxo pipefail
 
-USER=pine
+INITIAL_USER=pine
 INITIAL_PASSWORD=1111
 
-if ! getent passwd $USER; then
-    useradd -m -G wheel,dialout,video,audio,input $USER
-    printf 1111 | passwd --stdin $USER
+if ! getent passwd $INITIAL_USER; then
+    useradd -m -G wheel,dialout,video,audio,input $INITIAL_USER
+    printf "$INITIAL_PASSWORD" | passwd --stdin $INITIAL_USER
 fi
 
 systemctl disable pine-first-boot.service

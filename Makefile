@@ -2,14 +2,20 @@ IMAGE := out/image.raw
 
 ### VARIABLES ###
 
-# SRC_IMAGE -- The source .raw.xz image to customize. Must be set for
+# SRC_DISK_IMAGE -- The source .raw.xz image to customize. Must be set for
 # the 'image-init' target.
 
-# SRC_KERNEL_BOOT_DIR -- The built aarch64 kernel boot directory. Must
-# be set for 'install-kernel-*' targets. Usually looks like
-# '<linux-repo>/arch/arm64/boot'.
+# SRC_KERNEL_IMAGE -- The built aarch64 kernel image. Usually looks
+# like '<linux-repo>/arch/arm64/boot/Image'.
 
-SRC_KERNEL_VERSION := $(shell strings $$SRC_KERNEL_BOOT_DIR/Image | grep -Po 'Linux version \d+\.\d+\.\d+' | head -n1 | cut -d' ' -f3)
+# SRC_KERNEL_DTBS -- The built kernel device trees. Usually looks like
+# '<linux-repo>/tar-install/boot/dtbs/<kernel-version>'.
+
+# SRC_KERNEL_MODULES -- The built aarch64 kernel image. Usually looks
+# like '<linux-repo>/tar-install/lib/modules/<kernel-version>'.
+
+# SRC_KERNEL_RELEASE -- The release string for the kernel. Usually
+# is the content of the file '<linux-repo>/include/config/kernel.release'.
 
 ### E2E BUILD ###
 
@@ -30,9 +36,9 @@ PHONY += image-init
 image-init: $(IMAGE)
 
 $(IMAGE):
-	test -n "$(SRC_IMAGE)" || { echo "ERROR: SRC_IMAGE is not set"; exit 1; }
+	test -n "$(SRC_DISK_IMAGE)" || { echo "ERROR: SRC_DISK_IMAGE is not set"; exit 1; }
 	mkdir -p out
-	cp $(SRC_IMAGE) $(IMAGE).xz
+	cp $(SRC_DISK_IMAGE) $(IMAGE).xz
 	unxz $(IMAGE).xz
 
 PHONY += image-losetup
@@ -78,14 +84,13 @@ prune-fatboot:
 	rm -f mnt/fatboot/*.elf
 
 PHONY += install-kernel-pinetab2
-install-kernel-pinetab2: prune-fatboot mnt/fatboot/linux-$(SRC_KERNEL_VERSION)/Image mnt/fatboot/linux-$(SRC_KERNEL_VERSION)/dtb/rockchip generate-extlinux-conf
+install-kernel-pinetab2: prune-fatboot mnt/fatboot/linux-$(SRC_KERNEL_RELEASE)/Image mnt/fatboot/linux-$(SRC_KERNEL_RELEASE)/dtbs/rockchip mnt/btrfs/root/lib/modules/$(SRC_KERNEL_RELEASE) generate-extlinux-conf
 
-# mkimage -A arm64 -O linux -T kernel -C gzip -a 0 -e 0 -n Linux -d vmlinux.gz uImage
-mnt/fatboot/linux-$(SRC_KERNEL_VERSION)/Image: $(SRC_KERNEL_BOOT_DIR)/Image
-	test -n "$(SRC_KERNEL_BOOT_DIR)" || { echo "ERROR: SRC_KERNEL_BOOT_DIR is not set"; exit 1; }
-	test -n "$(SRC_KERNEL_VERSION)" || { echo "ERROR: SRC_KERNEL_VERSION is not set"; exit 1; }
-	echo "Kernel version: '$(SRC_KERNEL_VERSION)' from $(SRC_KERNEL_BOOT_DIR)"
-	mkdir -p mnt/fatboot/linux-$(SRC_KERNEL_VERSION)
+mnt/fatboot/linux-$(SRC_KERNEL_RELEASE)/Image: $(SRC_KERNEL_IMAGE)
+	test -n "$(SRC_KERNEL_IMAGE)" || { echo "ERROR: SRC_KERNEL_IMAGE is not set"; exit 1; }
+	test -n "$(SRC_KERNEL_RELEASE)" || { echo "ERROR: SRC_KERNEL_RELEASE is not set"; exit 1; }
+	echo "Kernel version: '$(SRC_KERNEL_RELEASE)' at $(SRC_KERNEL_IMAGE)"
+	mkdir -p mnt/fatboot/linux-$(SRC_KERNEL_RELEASE)
 	install "$<" "$@"
 
 PHONY += generate-extlinux-conf
@@ -95,14 +100,22 @@ generate-extlinux-conf: mnt/fatboot/generate-extlinux-conf.sh
 mnt/fatboot/generate-extlinux-conf.sh: files/fatboot/generate-extlinux-conf.sh
 	install "$<" "$@"
 
-mnt/fatboot/linux-$(SRC_KERNEL_VERSION)/dtb/rockchip: $(SRC_KERNEL_BOOT_DIR)/Image
-	if [ ! -e "$(SRC_KERNEL_BOOT_DIR)/dts/rockchip/rk3566-pinetab2-v2.0.dtb" ]; then \
+mnt/fatboot/linux-$(SRC_KERNEL_RELEASE)/dtbs/rockchip: $(SRC_KERNEL_IMAGE)
+	test -n "$(SRC_KERNEL_DTBS)" || { echo "ERROR: SRC_KERNEL_DTBS is not set"; exit 1; }
+	test -n "$(SRC_KERNEL_RELEASE)" || { echo "ERROR: SRC_KERNEL_RELEASE is not set"; exit 1; }
+	if [ ! -e "$(SRC_KERNEL_DTBS)/rockchip/rk3566-pinetab2-v2.0.dtb" ]; then \
 		echo "ERROR: It seems dtbs were not built."; \
 		exit 1; \
 	fi
 
 	mkdir -p "$@"
-	cp -a "$(SRC_KERNEL_BOOT_DIR)/dts/rockchip/"*.dtb "$@/"
+	cp -a "$(SRC_KERNEL_DTBS)/rockchip/"*.dtb "$@/"
+
+mnt/btrfs/root/lib/modules/$(SRC_KERNEL_RELEASE): $(SRC_KERNEL_IMAGE)
+	test -n "$(SRC_KERNEL_MODULES)" || { echo "ERROR: SRC_KERNEL_MODULES is not set"; exit 1; }
+	test -n "$(SRC_KERNEL_RELEASE)" || { echo "ERROR: SRC_KERNEL_RELEASE is not set"; exit 1; }
+	sudo cp -aT "$(SRC_KERNEL_MODULES)" "$@"
+	sudo chown root:root "$@"
 
 
 ### FIRST BOOT ###
