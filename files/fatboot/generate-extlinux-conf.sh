@@ -1,8 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-# This should be generic later, but for now let's hardcode it.
-
 mkdir -p extlinux
 
 KERNELS=$(ls -dv linux-* | tac)
