@@ -20,6 +20,18 @@ NOTE: This repository is not affiliated with the Fedora Project, nor
 with Pine64.
 
 
+Accompanying blog post
+----------------------
+
+There is a comprehensive blog post about building a Fedora image for
+the PineTab2 here:
+
+https://www.jistr.com/blog/2023-11-27-fedora-on-pinetab2/
+
+The blog post is probably the best way to get started, but if you just
+want condensed info, continue with the readme.
+
+
 Prerequisites
 -------------
 
